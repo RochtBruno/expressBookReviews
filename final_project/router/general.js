@@ -1,79 +1,102 @@
-const express = require('express');
+const express = require("express");
 let books = require("./booksdb.js");
 let isValid = require("./auth_users.js").isValid;
 let users = require("./auth_users.js").users;
 const public_users = express.Router();
 
+public_users.post("/register", (req, res) => {
+  const { username, password } = req.body; // Extrai username e password do corpo da requisição
 
-public_users.post("/register", (req,res) => {
-  const { username, password } = req.body; // Recupera username e password do corpo da requisição
-
-  // Verifica se o username e password foram fornecidos
+  // Verifica se o username ou password não foram fornecidos
   if (!username || !password) {
-    return res.status(400).json({ message: "Username e password são obrigatórios." }); // Retorna erro se faltarem dados
+    return res
+      .status(400)
+      .json({ message: "Username and password are required." });
   }
 
-  // Verifica se o usuário já existe
-  const existingUser = users.find(user => user.username === username);
-  if (existingUser) {
-    return res.status(400).json({ message: "O nome de usuário já existe." }); // Retorna erro se o usuário já existe
+  // Verifica se o username já existe
+  const userExists = users.some((user) => user.username === username);
+  if (userExists) {
+    return res.status(400).json({ message: "Username already exists." });
   }
 
-  // Adiciona o novo usuário à lista de usuários
-  users.push({ username, password });
-  return res.status(201).json({ message: "Usuário registrado com sucesso." });
+  // Registra o novo usuário
+  users.push({ username, password }); // Você pode adicionar uma lógica para hash da senha aqui, se necessário
+  return res.status(201).json({ message: "User registered successfully." });
 });
 
 // Get the book list available in the shop
-public_users.get('/',function (req, res) {
-    return res.status(200).json(JSON.stringify(books, null, 2));
+public_users.get("/", function (req, res) {
+  return res.status(200).json(JSON.stringify(books, null, 2));
 });
 
-// Get book details based on ISBN
-public_users.get('/isbn/:isbn',function (req, res) {
-  const isbn = req.params.isbn; // Recupera o ISBN dos parâmetros da requisição
-  const book = books.find(b => b.isbn === isbn); // Encontra o livro com o ISBN fornecido
+public_users.get("/isbn/:isbn", function (req, res) {
+  const isbn = req.params.isbn; // Obtém o ISBN da URL
 
+  if (books[isbn]) {
+    // Verifica se o ISBN existe no objeto de livros
+    return res.status(200).json(books[isbn]); // Retorna os detalhes do livro
+  } else {
+    return res.status(404).json({ message: "Book not found" }); // Se o ISBN não existir
+  }
+});
+
+public_users.get("/author/:author", function (req, res) {
+  const author = req.params.author; // Obtém o nome do autor da URL
+  const matchingBooks = []; // Array para armazenar livros que correspondem ao autor
+
+  // Itera sobre todas as chaves do objeto 'books'
+  for (const key in books) {
+    if (books[key].author === author) {
+      // Verifica se o autor do livro corresponde ao autor fornecido
+      matchingBooks.push(books[key]); // Adiciona o livro ao array se o autor corresponder
+    }
+  }
+
+  // Verifica se algum livro foi encontrado
+  if (matchingBooks.length > 0) {
+    return res.status(200).json(matchingBooks); // Retorna os livros correspondentes
+  } else {
+    return res.status(404).json({ message: "No books found for this author" }); // Retorna erro se não encontrar livros
+  }
+});
+
+public_users.get("/title/:title", function (req, res) {
+  const title = req.params.title; // Obtém o título do livro da URL
+  const matchingBooks = []; // Array para armazenar livros que correspondem ao título
+
+  // Itera sobre todas as chaves do objeto 'books'
+  for (const key in books) {
+    if (books[key].title.toLowerCase() === title.toLowerCase()) {
+      // Verifica se o título do livro corresponde ao título fornecido
+      matchingBooks.push(books[key]); // Adiciona o livro ao array se o título corresponder
+    }
+  }
+
+  // Verifica se algum livro foi encontrado
+  if (matchingBooks.length > 0) {
+    return res.status(200).json(matchingBooks); // Retorna os livros correspondentes
+  } else {
+    return res.status(404).json({ message: "No books found with this title" }); // Retorna erro se não encontrar livros
+  }
+});
+
+public_users.get("/review/:isbn", function (req, res) {
+  const isbn = req.params.isbn; // Obtém o ISBN do livro da URL
+  const book = books[isbn]; // Obtém o livro correspondente ao ISBN
+
+  // Verifica se o livro existe
   if (book) {
-    return res.status(200).json(JSON.stringify(book, null, 2)); // Retorna os detalhes do livro
+    // Verifica se o livro tem avaliações
+    if (book.reviews && book.reviews.length > 0) {
+      return res.status(200).json(book.reviews); // Retorna as avaliações do livro
+    } else {
+      return res
+        .status(404)
+        .json({ message: "No reviews found for this book" }); // Retorna erro se não encontrar avaliações
+    }
   } else {
-    return res.status(404).json({ message: "Livro não encontrado" }); // Retorna mensagem de erro se o livro não for encontrado
-  }
- });
-  
-// Get book details based on author
-public_users.get('/author/:author',function (req, res) {
-  const author = req.params.author; // Recupera o autor dos parâmetros da requisição
-  const booksByAuthor = books.filter(b => b.author === author); // Filtra os livros pelo autor fornecido
-
-  if (booksByAuthor.length > 0) {
-    return res.status(200).json(JSON.stringify(booksByAuthor, null, 2)); // Retorna os livros encontrados do autor
-  } else {
-    return res.status(404).json({ message: "Nenhum livro encontrado para este autor" }); // Retorna mensagem de erro se nenhum livro for encontrado
-  }
-});
-
-// Get all books based on title
-public_users.get('/title/:title',function (req, res) {
-  const title = req.params.title; // Recupera o título dos parâmetros da requisição
-  const booksByTitle = books.filter(b => b.title === title); // Filtra os livros pelo título fornecido
-
-  if (booksByTitle.length > 0) {
-    return res.status(200).json(JSON.stringify(booksByTitle, null, 2)); // Retorna os livros encontrados com o título
-  } else {
-    return res.status(404).json({ message: "Nenhum livro encontrado com este título" }); // Retorna mensagem de erro se nenhum livro for encontrado
-  }
-});
-
-//  Get book review
-public_users.get('/review/:isbn',function (req, res) {
-  const isbn = req.params.isbn; // Recupera o ISBN dos parâmetros da requisição
-  const book = books.find(b => b.isbn === isbn); // Encontra o livro correspondente ao ISBN fornecido
-
-  if (book && book.reviews) {
-    return res.status(200).json(JSON.stringify(book.reviews, null, 2)); // Retorna as resenhas do livro
-  } else {
-    return res.status(404).json({ message: "Nenhuma resenha encontrada para este ISBN" }); // Retorna mensagem de erro se nenhuma resenha for encontrada
+    return res.status(404).json({ message: "Book not found" }); // Retorna erro se não encontrar o livro
   }
 });
 
